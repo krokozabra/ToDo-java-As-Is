@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">To Do Java AS IS</string>
+    <string name="quests_list">Список Квестов</string>
+    <string name="name">Заголовок</string>
+    <string name="description">Описание</string>
+    <string name="date_do_it">Дата исполнения</string>
+    <string name="every_day">Ежедневно</string>
+    <string name="add_task">Добавить задание</string>
+    <string name="every_day_tasks">Ежедневные задачи</string>
+    <string name="complete_task">Выполнено</string>
+    <string name="dell_task">Удалить</string>
+    <string name="name_quest">Название квеста:</string>
+    <string name="desc_quest">Описание квеста:</string>
+    <string name="dead_line">Выполнить до:</string>
+</resources>
