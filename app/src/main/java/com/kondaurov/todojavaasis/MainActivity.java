@@ -19,10 +19,17 @@ import android.widget.ListView;
 import androidx.appcompat.widget.Toolbar;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import org.reactivestreams.Subscription;
+
 import java.io.BufferedReader;
 import java.net.HttpURLConnection;
 import java.util.ArrayList;
 import java.util.Calendar;
+
+import io.reactivex.Observable;
+import io.reactivex.Observer;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
 
 
 public class MainActivity extends AppCompatActivity implements SwipeRefreshLayout.OnRefreshListener {
@@ -40,8 +47,8 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
     public void onRefresh() {
         toDoList.clear();
         list.setAdapter(null);
-        AsyncToDo aa = new AsyncToDo();
-        aa.execute();
+        /*AsyncToDo aa = new AsyncToDo();
+        aa.execute();*/
         mSwipeRefreshLayout.setRefreshing(false); // останавливает анимацию загрузки
 
     }
@@ -63,11 +70,44 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
         dbHelper = new DBHelper(this);
         checkEverydayInTask();
 
-        AsyncToDo atd = new AsyncToDo();
-        atd.execute();
 
-
+        Observable.fromArray(getToDoList())
+                .subscribeOn(Schedulers.newThread())
+                .subscribe(observer);
     }
+
+    Observer<ArrayList<ToDoData>> observer = new Observer<ArrayList<ToDoData>>() {
+
+        @Override
+        public void onSubscribe(Disposable d) {
+            System.out.println("onSubscribe: ");
+
+        }
+
+        @Override
+        public void onNext(ArrayList<ToDoData> toDoData) {
+            for (ToDoData x : toDoData) {
+                System.out.println(x.id + " " + x.name + " " + x.OK);
+            }
+
+            toDoList.clear();
+
+            toDoList.addAll(toDoData);
+
+            list.setAdapter(toDoAdapter);
+        }
+
+        @Override
+        public void onError(Throwable e) {
+            System.out.println("onError: ");
+        }
+
+        @Override
+        public void onComplete() {
+            System.out.println("onComplete: All Done!");
+        }
+    };
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -84,7 +124,8 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
                 Intent intent = new Intent(this, AddTaskActivity.class);
                 startActivity(intent);
                 break;
-            }case R.id.action_every: {
+            }
+            case R.id.action_every: {
                 Intent intent = new Intent(this, EverydayActivity.class);
                 startActivity(intent);
                 break;
@@ -93,78 +134,57 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
         return true;
     }
 
-    private class AsyncToDo extends AsyncTask<Void, Void, ArrayList<ToDoData>> {
-
-        @Override
-        protected ArrayList<ToDoData> doInBackground(Void... params) {
-            ArrayList<ToDoData> todos = new ArrayList<>();
-            Calendar today = Calendar.getInstance();
-            SQLiteDatabase database = dbHelper.getWritableDatabase();
-//            Cursor cursor = database.query(DBHelper.TABLE_TO_DO_LIST, null, DBHelper.ONE_DAY_TODO +"="+ Calendar.DAY_OF_MONTH +" AND "+DBHelper.ONE_MONTH_TODO +"="+ Calendar.MONTH +" AND "+DBHelper.ONE_YEAR_TODO +"="+ Calendar.YEAR, null, null, null, null);
-            Log.d("mainLog", "today = "+today.get(Calendar.DAY_OF_MONTH));
-
-            Cursor cursor = database.query(DBHelper.TABLE_TO_DO_LIST, null, DBHelper.ONE_DAY_TODO +" = "+ today.get(Calendar.DAY_OF_MONTH) +" AND "+DBHelper.ONE_MONTH_TODO +" = "+ today.get(Calendar.MONTH) +" AND "+DBHelper.ONE_YEAR_TODO +" = "+ today.get(Calendar.YEAR), null, null, null, null);
-            try {
-                if (cursor.moveToFirst()) {
-                    int idIndex = cursor.getColumnIndex(DBHelper.ONE_KEY_ID);
-                    int nameIndex = cursor.getColumnIndex(DBHelper.ONE_NAME_TODO);
-                    int descIndex = cursor.getColumnIndex(DBHelper.ONE_DESCRIPTION_TODO);
-                    int dayIndex = cursor.getColumnIndex(DBHelper.ONE_DAY_TODO);
-                    int monthIndex = cursor.getColumnIndex(DBHelper.ONE_MONTH_TODO);
-                    int yearIndex = cursor.getColumnIndex(DBHelper.ONE_YEAR_TODO);
-                    int OKIndex = cursor.getColumnIndex(DBHelper.ONE_OK_TODO);
-                    do {
-                        ToDoData rec = new ToDoData(cursor.getInt(idIndex), cursor.getString(nameIndex), cursor.getString(dayIndex),cursor.getString(monthIndex),cursor.getString(yearIndex), cursor.getString(descIndex), cursor.getInt(OKIndex), 0);
-                        todos.add(rec);
-                    } while (cursor.moveToNext());
-                } else
-                    Log.d("mainLog", "0 rows");
-            } catch (Exception e) {
-                Log.d("mainLog", "exept: "+e);
-            }
-            dbHelper.close();
-
-            return todos;
-
-        }
-
-        @Override
-        protected void onPostExecute(ArrayList<ToDoData> arrayToDo) {
-            super.onPostExecute(arrayToDo);
-            System.out.println("заполнение листа");
-
-            for (ToDoData x : arrayToDo) {
-                System.out.println(x.id+" "+x.name+" "+x.OK);
-            }
-
-            toDoList.clear();
-
-            toDoList.addAll(arrayToDo);
-
-            list.setAdapter(toDoAdapter);
-
-        }
-    }
-
-    public void checkEverydayInTask()
-    {
+    //источник данных для observable
+    private ArrayList<ToDoData> getToDoList() {
+        ArrayList<ToDoData> todos = new ArrayList<>();
         Calendar today = Calendar.getInstance();
         SQLiteDatabase database = dbHelper.getWritableDatabase();
-        Cursor cursor ;
+//            Cursor cursor = database.query(DBHelper.TABLE_TO_DO_LIST, null, DBHelper.ONE_DAY_TODO +"="+ Calendar.DAY_OF_MONTH +" AND "+DBHelper.ONE_MONTH_TODO +"="+ Calendar.MONTH +" AND "+DBHelper.ONE_YEAR_TODO +"="+ Calendar.YEAR, null, null, null, null);
+        Log.d("mainLog", "today = " + today.get(Calendar.DAY_OF_MONTH));
 
-        String table = DBHelper.TABLE_TO_DO_LIST+" as t, "+DBHelper.TABLE_EVERY_DAY_LIST+" as e ";
+        Cursor cursor = database.query(DBHelper.TABLE_TO_DO_LIST, null, DBHelper.ONE_DAY_TODO + " = " + today.get(Calendar.DAY_OF_MONTH) + " AND " + DBHelper.ONE_MONTH_TODO + " = " + today.get(Calendar.MONTH) + " AND " + DBHelper.ONE_YEAR_TODO + " = " + today.get(Calendar.YEAR), null, null, null, null);
+        try {
+            if (cursor.moveToFirst()) {
+                int idIndex = cursor.getColumnIndex(DBHelper.ONE_KEY_ID);
+                int nameIndex = cursor.getColumnIndex(DBHelper.ONE_NAME_TODO);
+                int descIndex = cursor.getColumnIndex(DBHelper.ONE_DESCRIPTION_TODO);
+                int dayIndex = cursor.getColumnIndex(DBHelper.ONE_DAY_TODO);
+                int monthIndex = cursor.getColumnIndex(DBHelper.ONE_MONTH_TODO);
+                int yearIndex = cursor.getColumnIndex(DBHelper.ONE_YEAR_TODO);
+                int OKIndex = cursor.getColumnIndex(DBHelper.ONE_OK_TODO);
+                do {
+                    ToDoData rec = new ToDoData(cursor.getInt(idIndex), cursor.getString(nameIndex), cursor.getString(dayIndex), cursor.getString(monthIndex), cursor.getString(yearIndex), cursor.getString(descIndex), cursor.getInt(OKIndex), 0);
+                    todos.add(rec);
+                } while (cursor.moveToNext());
+            } else
+                Log.d("mainLog", "0 rows");
+        } catch (Exception e) {
+            Log.d("mainLog", "exept: " + e);
+        }
+        cursor.close();
+        dbHelper.close();
+
+        return todos;
+    }
+
+
+    public void checkEverydayInTask() {
+        Calendar today = Calendar.getInstance();
+        SQLiteDatabase database = dbHelper.getWritableDatabase();
+        Cursor cursor;
+
+        String table = DBHelper.TABLE_TO_DO_LIST + " as t, " + DBHelper.TABLE_EVERY_DAY_LIST + " as e ";
         String[] columns = {"*"};
         String selection = "(" +
-                "t."+DBHelper.ONE_DAY_TODO+" = "+today.get(Calendar.DAY_OF_MONTH)+" AND " +
-                "t."+DBHelper.ONE_MONTH_TODO+" = "+today.get(Calendar.MONTH)+" AND " +
-                "t."+DBHelper.ONE_YEAR_TODO+" = "+today.get(Calendar.YEAR)+" AND " +
-                "t."+DBHelper.ONE_NAME_TODO+" = e."+DBHelper.TWO_NAME_TODO+" AND " +
-                "t."+DBHelper.ONE_DESCRIPTION_TODO+" = e."+DBHelper.TWO_DESCRIPTION_TODO+")";
+                "t." + DBHelper.ONE_DAY_TODO + " = " + today.get(Calendar.DAY_OF_MONTH) + " AND " +
+                "t." + DBHelper.ONE_MONTH_TODO + " = " + today.get(Calendar.MONTH) + " AND " +
+                "t." + DBHelper.ONE_YEAR_TODO + " = " + today.get(Calendar.YEAR) + " AND " +
+                "t." + DBHelper.ONE_NAME_TODO + " = e." + DBHelper.TWO_NAME_TODO + " AND " +
+                "t." + DBHelper.ONE_DESCRIPTION_TODO + " = e." + DBHelper.TWO_DESCRIPTION_TODO + ")";
         cursor = database.query(table, columns, selection, null, null, null, null);
-        System.out.println("размер курсора =" +cursor.getCount());
+        System.out.println("размер курсора =" + cursor.getCount());
 
-        if(cursor.getCount()==0)
-        {
+        if (cursor.getCount() == 0) {
             insertInToDo();
         }
 
@@ -176,8 +196,7 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
 
     }
 
-    public void insertInToDo()
-    {
+    public void insertInToDo() {
         Calendar today = Calendar.getInstance();
         SQLiteDatabase database = dbHelper.getWritableDatabase();
 
@@ -201,7 +220,7 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
             } else
                 Log.d("mainLog", "0 rows");
         } catch (Exception e) {
-            Log.d("mainLog", "exept: "+e);
+            Log.d("mainLog", "exept: " + e);
         }
         cursor.close();
         dbHelper.close();
